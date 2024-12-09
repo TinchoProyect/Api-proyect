@@ -1,5 +1,6 @@
 const express = require('express');
 const sql = require('mssql');
+const cors = require('cors');
 const { getClientes } = require('./queries/clientesQueries');  
 const { getMovimientosPorCliente } = require('./queries/movimientosQueries'); 
 const { getKardex } = require('./queries/kardexQueries');  
@@ -10,6 +11,7 @@ const { insertarSaldoInicial, actualizarSaldoInicial, existeSaldoInicial, obtene
 
 const app = express();
 
+app.use(cors()); // Middleware para permitir solicitudes CORS
 app.use(express.json()); // Middleware para leer cuerpos de solicitudes JSON
 
 // Configuración de la base de datos SQL Server
