@@ -56,7 +56,7 @@ const obtenerSaldoInicial = async (IDCliente) => {
         const result = await pool.request()
             .input('IDCliente', sql.Int, IDCliente)
             .query(`
-                SELECT IDCliente, Monto, Fecha, Usuario, UltimaModificacion
+                SELECT IDCliente, Monto, Fecha, UltimaModificacion
                 FROM dbo.SaldosIniciales
                 WHERE IDCliente = @IDCliente;
             `);
@@ -92,7 +92,6 @@ const insertarSaldoInicial = async (IDCliente, Monto, Fecha, Usuario) => {
             .input('IDCliente', sql.Int, IDCliente)
             .input('Monto', sql.Decimal(18, 2), Monto)
             .input('Fecha', sql.Date, Fecha)
-            .input('Usuario', sql.VarChar(50), Usuario)
             .query(`
                 INSERT INTO dbo.SaldosIniciales (IDCliente, Monto, Fecha, UltimaModificacion, Usuario)
                 VALUES (@IDCliente, @Monto, @Fecha, GETDATE(), @Usuario);
@@ -121,7 +120,6 @@ const actualizarSaldoInicial = async (IDCliente, Monto, Fecha, Usuario) => {
             .input('IDCliente', sql.Int, IDCliente)
             .input('Monto', sql.Decimal(18, 2), Monto)
             .input('Fecha', sql.Date, Fecha)
-            .input('Usuario', sql.VarChar(50), Usuario)
             .query(`
                 UPDATE dbo.SaldosIniciales
                 SET Monto = @Monto, Fecha = @Fecha, UltimaModificacion = GETDATE(), Usuario = @Usuario

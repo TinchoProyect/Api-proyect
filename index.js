@@ -134,10 +134,10 @@ app.get('/saldos-iniciales/:idCliente', async (req, res) => {
 
 // Nuevo endpoint para manejar saldos iniciales
 app.post('/saldos-iniciales', async (req, res) => {
-    const { IDCliente, Monto, Fecha, Usuario } = req.body;
+    const { IDCliente, Monto, Fecha } = req.body;
 
     // Validar campos requeridos
-    if (IDCliente === undefined || Monto === undefined || Fecha === undefined || !Usuario) {
+    if (IDCliente === undefined || Monto === undefined || Fecha === undefined) {
         return res.status(400).send('Faltan campos requeridos en la solicitud');
     }
 
@@ -147,7 +147,7 @@ app.post('/saldos-iniciales', async (req, res) => {
         
         if (saldoExiste) {
             // Si existe, actualizar el saldo inicial
-            await actualizarSaldoInicial(IDCliente, Monto, Fecha, Usuario);
+            await actualizarSaldoInicial(IDCliente, Monto, Fecha);
             return res.status(200).send('Saldo inicial actualizado correctamente');
         } else {
             // Si no existe, enviar un mensaje de error
