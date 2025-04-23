@@ -23,18 +23,65 @@ const getMovimientosPorCliente = async (clienteId) => {
         c.comentario,
         c.estado,
         cm.comentario AS comentario_movimiento,
-        -- Agregar la columna "Efectivo"
+        -- Determinar los valores individuales solo para registros procesables
         CASE
-            -- Verificamos que el comentario comience con las cadenas indicadas
-            WHEN (cm.comentario LIKE 'RB X 00%' OR
-                  cm.comentario LIKE 'RB A 00%' OR
-                  cm.comentario LIKE 'RB B 00%' OR
-                  cm.comentario LIKE 'RB M 00%')
-            -- Verificamos que el valor de c.numero esté en el comentario
-            AND cm.comentario LIKE '%' + CAST(c.numero AS VARCHAR) + '%'
-            THEN 'Efectivo'
-            ELSE NULL -- O puedes poner '0' en lugar de NULL si prefieres un cero
-        END AS efectivo,
+            WHEN tc.nombre IN ('FE', 'FB', 'FA', 'Mov. Cli.', 'N/C A', 'N/C E', 'N/C B') THEN NULL
+            ELSE (
+                CASE
+                    -- Verificar si existe efectivo
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM dbo.comp_x_forma_pago cxp
+                        WHERE cxp.codigo_comp = c.codigo AND cxp.tipo = 1
+                    ) THEN 'Efectivo'
+                    ELSE ''
+                END +
+                CASE
+                    -- Verificar si es cheque en singular o plural
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM dbo.comp_x_forma_pago cxp
+                        WHERE cxp.codigo_comp = c.codigo AND cxp.tipo = 3
+                    ) THEN 
+                        CASE 
+                            WHEN (
+                                SELECT COUNT(*)
+                                FROM dbo.comp_x_forma_pago cxp
+                                WHERE cxp.codigo_comp = c.codigo AND cxp.tipo = 3
+                            ) = 1 THEN ' / Cheque'
+                            ELSE 
+                                ' / ' + CAST((
+                                    SELECT COUNT(*)
+                                    FROM dbo.comp_x_forma_pago cxp
+                                    WHERE cxp.codigo_comp = c.codigo AND cxp.tipo = 3
+                                ) AS VARCHAR) + ' Cheques'
+                        END
+                    ELSE ''
+                END +
+                CASE
+                    -- Verificar si es transferencia en singular o plural
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM dbo.comp_x_forma_pago cxp
+                        WHERE cxp.codigo_comp = c.codigo AND cxp.tipo = 8
+                    ) THEN 
+                        CASE 
+                            WHEN (
+                                SELECT COUNT(*)
+                                FROM dbo.comp_x_forma_pago cxp
+                                WHERE cxp.codigo_comp = c.codigo AND cxp.tipo = 8
+                            ) = 1 THEN ' / Transferencia'
+                            ELSE 
+                                ' / ' + CAST((
+                                    SELECT COUNT(*)
+                                    FROM dbo.comp_x_forma_pago cxp
+                                    WHERE cxp.codigo_comp = c.codigo AND cxp.tipo = 8
+                                ) AS VARCHAR) + ' Transferencias'
+                        END
+                    ELSE ''
+                END
+            )
+        END AS efectivo_raw,
         -- Asignar un número de fila a cada grupo de 'c.codigo'
         ROW_NUMBER() OVER (PARTITION BY c.codigo ORDER BY c.fecha DESC) AS fila
     FROM 
@@ -66,7 +113,18 @@ SELECT
     importe_total,
     comentario,
     estado,
-    efectivo
+    -- Limpiar valores combinados y manejar las barras
+    CASE
+        WHEN efectivo_raw IS NULL THEN NULL
+        ELSE LTRIM(
+            CASE 
+                WHEN efectivo_raw LIKE 'Efectivo%' AND efectivo_raw LIKE '%/ Cheque%' THEN efectivo_raw
+                WHEN efectivo_raw LIKE 'Efectivo%' AND efectivo_raw LIKE '%/ Transferencia%' THEN efectivo_raw
+                WHEN efectivo_raw LIKE '%Cheque%' AND efectivo_raw LIKE '%Transferencia%' THEN efectivo_raw
+                ELSE REPLACE(efectivo_raw, '/', '')
+            END
+        )
+    END AS efectivo
 FROM CTE
 WHERE fila = 1  -- Solo mantener una fila por cada 'c.codigo'
 ORDER BY fecha;
