@@ -8,6 +8,7 @@ const { getArticulosAsociados } = require('./queries/artXartQueries');
 const { getArticulos } = require('./queries/articulosQueries'); 
 const { getMovimientosYDetalles } = require('./queries/MovKaxQueries');  
 const { insertarSaldoInicial, actualizarSaldoInicial, existeSaldoInicial, obtenerSaldoInicial } = require('./queries/saldosIniciales'); // Importar las funciones de saldos iniciales
+const { getArticulosConCodigosBarras } = require('./queries/articuloCodBarrasQueries');
 
 const app = express();
 
@@ -108,6 +109,17 @@ app.get('/articulos', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).send('Error al obtener los artículos');
+    }
+});
+
+// Nuevo endpoint para obtener artículos con códigos de barras
+app.get('/etiquetas/articulos', async (req, res) => {
+    try {
+        const articulosConCodigos = await getArticulosConCodigosBarras();
+        res.json(articulosConCodigos);
+    } catch (err) {
+        console.error('Error al obtener artículos con códigos de barras:', err);
+        res.status(500).send('Error al obtener artículos con códigos de barras');
     }
 });
 
