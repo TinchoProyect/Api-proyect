@@ -1,61 +1,97 @@
 // queries/clientesQueries.js
-
 const sql = require('mssql');
 
-// Función para obtener la lista de clientes
-const getClientes = async () => {
-    try {
-        const result = await sql.query(`
-            SELECT 
-    c.codigo AS 'Número',
-    c.nombre AS 'Nombre',
-    CASE c.lista_precio 
-      WHEN 1 THEN 'Precio Neg.'
-      WHEN 2 THEN 'Mayorista'
-      WHEN 3 THEN 'Especia (Brus)'
-      WHEN 4 THEN 'Consumidor Final'
-      WHEN 5 THEN 'Lista 5'
-      ELSE 'Desconocido'
-    END AS 'Lista precios',
-    tipos_iva.nombre AS 'Cond. IVA',
-    zonas.nombre As 'Zona',
-    c.apellido AS 'Apellido',
-    c.otros AS 'Otros',
-    c.cuit AS 'CUIT',
-    empleados.apellido AS 'Vendedor',
-    c.telefono2 AS 'Teléfono 2',
-    c.telefono AS 'Teléfono',
-    c.email AS 'E-Mail',
-    c.celular AS 'Celular',
-    c.cuenta_limite AS 'Límite cta.',
-    c.fecha_nacimiento AS 'Nacimiento',
-    localidades.nombre AS 'Localidad',
-    provincias.nombre AS 'Provincia',
-    paises.nombre AS 'País',
-    c.dni AS 'DNI',
-    c.domicilio AS 'Domicilio'
-FROM 
-    clientes c
-LEFT JOIN
-	tipos_iva ON C.condicion_iva = tipos_iva.codigo
-LEFT JOIN	
-	Zonas ON c.empresa = Zonas.empresa
-LEFT JOIN
-	empleados on C.empleado = empleados.codigo
-LEFT JOIN
-	localidades on c.localidad = localidades.codigo
-LEFT JOIN
-	provincias on c.provincia = provincias.codigo
-LEFT JOIN
-	paises on c.pais = paises.codigo
-	
-WHERE 
-    c.eliminado = 0;
-        `);
-        return result.recordset;
-    } catch (error) {
-        throw new Error('Error al obtener los clientes: ' + error.message);
-    }
+/**
+ * getClientes(filters)
+ * filters: { search?, zona?, vendedor?, limit?, offset? }
+ * - search: texto libre (busca en nombre, apellido, cuit)
+ * - zona: (opcional) id/empresa de zona (segun diagnostico actual)
+ * - vendedor: (opcional) id de empleado
+ * - limit: default 100 (max 1000)
+ * - offset: default 0
+ */
+const getClientes = async (filters = {}) => {
+  try {
+    const {
+      search = null,
+      zona = null,
+      vendedor = null,
+      limit: rawLimit = 100,
+      offset: rawOffset = 0
+    } = filters;
+
+    const limit = Math.min(Math.max(parseInt(rawLimit, 10) || 100, 1), 1000);
+    const offset = Math.max(parseInt(rawOffset, 10) || 0, 0);
+
+    // Armamos WHERE dinámico compatible con SQL Server 2008 R2
+    const where = [
+      'c.eliminado = 0',
+      '( @search IS NULL OR c.nombre LIKE (\'%\' + @search + \'%\') OR c.apellido LIKE (\'%\' + @search + \'%\') OR c.cuit LIKE (\'%\' + @search + \'%\') )',
+      '( @zona IS NULL OR c.empresa = @zona )',
+      '( @vendedor IS NULL OR c.empleado = @vendedor )'
+    ].join(' AND ');
+
+    // Paginación con ROW_NUMBER() (compatible 2008 R2)
+    const query = `
+      WITH base AS (
+        SELECT 
+          c.codigo AS cliente_id,
+          c.nombre AS nombre,
+          c.lista_precio AS lista_precios,
+          tipos_iva.nombre   AS condicion_iva,
+          zonas.nombre       AS zona,
+          c.apellido         AS apellido,
+          c.otros            AS otros,
+          c.cuit             AS cuit,
+          empleados.apellido AS vendedor,
+          c.telefono2        AS telefono_2,
+          c.telefono         AS telefono,
+          c.email            AS email,
+          c.celular          AS celular,
+          c.cuenta_limite    AS limite_cta,
+          CONVERT(date, c.fecha_nacimiento) AS nacimiento,
+          localidades.nombre AS localidad,
+          provincias.nombre  AS provincia,
+          paises.nombre      AS pais,
+          CAST(c.dni AS varchar(20)) AS dni,
+          c.domicilio        AS domicilio
+        FROM dbo.clientes c
+        LEFT JOIN dbo.tipos_iva    ON c.condicion_iva = tipos_iva.codigo
+        LEFT JOIN dbo.zonas        ON c.empresa = zonas.empresa
+        LEFT JOIN dbo.empleados    ON c.empleado = empleados.codigo
+        LEFT JOIN dbo.localidades  ON c.localidad = localidades.codigo
+        LEFT JOIN dbo.provincias   ON c.provincia = provincias.codigo
+        LEFT JOIN dbo.paises       ON c.pais = paises.codigo
+        WHERE ${where}
+      ),
+      numerada AS (
+        SELECT 
+          b.*,
+          ROW_NUMBER() OVER (ORDER BY b.nombre) AS rn,
+          COUNT(*) OVER() AS total_rows
+        FROM base b
+      )
+      SELECT *
+      FROM numerada
+      WHERE rn BETWEEN (@offset + 1) AND (@offset + @limit)
+      ORDER BY rn;
+    `;
+
+    const request = new sql.Request();
+    request.input('search', sql.NVarChar(200), search);
+    request.input('zona', sql.Int, zona === null ? null : parseInt(zona, 10));
+    request.input('vendedor', sql.Int, vendedor === null ? null : parseInt(vendedor, 10));
+    request.input('limit', sql.Int, limit);
+    request.input('offset', sql.Int, offset);
+
+    const result = await request.query(query);
+    const rows = result.recordset || [];
+    const total = rows.length ? rows[0].total_rows : 0;
+
+    return { total, data: rows };
+  } catch (error) {
+    throw new Error('Error al obtener los clientes: ' + error.message);
+  }
 };
 
 module.exports = { getClientes };
