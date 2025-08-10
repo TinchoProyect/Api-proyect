@@ -1,0 +1,24 @@
+### Contract Check Manual - Verificación de endpoints
+
+### 1. GET /consulta - Debe devolver Array directo (Cliente[])
+GET http://localhost:3000/consulta
+Content-Type: application/json
+
+### 2. GET /api/clientes - Debe devolver objeto wrapper { ok, total, data }
+GET http://localhost:3000/api/clientes
+Content-Type: application/json
+
+### 3. GET /api/clientes con filtros - Verificar que sigue funcionando
+GET http://localhost:3000/api/clientes?search=juan&limit=10
+Content-Type: application/json
+
+### 4. Verificar que API está activa
+GET http://localhost:3000/
+Content-Type: application/json
+
+###
+### CURL equivalents para verificación:
+###
+### curl -X GET "http://localhost:3000/consulta" -H "Content-Type: application/json"
+### curl -X GET "http://localhost:3000/api/clientes" -H "Content-Type: application/json"
+###

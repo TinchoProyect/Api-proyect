@@ -35,8 +35,20 @@ sql.connect(config).then(() => {
 // Ruta para obtener la lista de clientes
 app.get('/consulta', async (req, res) => {
     try {
-        const clientes = await getClientes();  
-        res.json(clientes);
+        const clientes = await getClientes();
+        
+        // Desempaquetar wrapper para mantener contrato legacy (Cliente[])
+        let clientesArray;
+        if (clientes && typeof clientes === 'object' && Array.isArray(clientes.data)) {
+            clientesArray = clientes.data;
+        } else if (Array.isArray(clientes)) {
+            clientesArray = clientes;
+        } else {
+            clientesArray = [];
+        }
+        
+        console.log(`[DEBUG] endpoint=/consulta count=${clientesArray.length}`);
+        res.json(clientesArray);
     } catch (err) {
         console.error(err);
         res.status(500).send('Error al obtener la lista de clientes');
@@ -109,6 +121,27 @@ app.get('/articulos', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).send('Error al obtener los artículos');
+    }
+});
+
+// Nueva ruta para obtener clientes con filtros y paginado
+app.get('/api/clientes', async (req, res) => {
+    try {
+        const filters = {
+            search: req.query.search || null,
+            zona: req.query.zona || null,
+            vendedor: req.query.vendedor || null,
+            limit: req.query.limit || 100,
+            offset: req.query.offset || 0
+        };
+
+        console.log('📡 [/api/clientes] filtros =', filters);
+        const result = await getClientes(filters);
+
+        res.json({ ok: true, total: result.total, data: result.data });
+    } catch (err) {
+        console.error('❌ [/api/clientes] Error:', err);
+        res.status(500).json({ ok: false, error: 'Error al obtener clientes' });
     }
 });
 

@@ -1,1 +1,11 @@
-GET http://localhost:3000/movimientos_detalles?clienteId=387
+### Todos (default limit=100)
+GET http://localhost:3000/api/clientes
+
+### Paginado
+GET http://localhost:3000/api/clientes?offset=100&limit=100
+
+### Búsqueda por texto
+GET http://localhost:3000/api/clientes?search=juan
+
+### Filtros por zona y vendedor
+GET http://localhost:3000/api/clientes?zona=1&vendedor=5
