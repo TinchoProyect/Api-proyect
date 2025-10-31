@@ -94,4 +94,49 @@ const getClientes = async (filters = {}) => {
   }
 };
 
-module.exports = { getClientes };
+/**
+ * getClientesLegacy()
+ * Consulta liviana para /consulta con contrato legacy exacto (21 campos)
+ * Sin paginación, sin filtros, SQL Server 2008 compatible
+ */
+const getClientesLegacy = async () => {
+  try {
+    const query = `
+      SELECT
+        CAST(c.codigo AS INT)                         AS [Número],
+        ISNULL(LTRIM(RTRIM(c.nombre)),   '')          AS [Nombre],
+        ISNULL(LTRIM(RTRIM(c.apellido)), '')          AS [Apellido],
+        c.lista_precio                                 AS [ListaPrecios],
+        NULL                                          AS [CondIVA],
+        NULL                                          AS [Zona],
+        c.cuit                                        AS [CUIT],
+        NULL                                          AS [Vendedor],
+        c.telefono2                                   AS [Telefono2],
+        c.telefono                                    AS [Telefono],
+        c.email                                       AS [Email],
+        c.celular                                     AS [Celular],
+        c.cuenta_limite                               AS [CuentaLimite],
+        CONVERT(VARCHAR(10), c.fecha_nacimiento, 120) AS [Nacimiento],
+        NULL                                          AS [Localidad],
+        NULL                                          AS [Provincia],
+        NULL                                          AS [Pais],
+        CAST(c.dni AS VARCHAR(20))                    AS [DNI],
+        c.domicilio                                   AS [Domicilio],
+        c.otros                                       AS [Otros],
+        NULL                                          AS [saldo]
+      FROM dbo.clientes c
+      WHERE c.eliminado = 0
+      ORDER BY c.codigo;
+    `;
+
+    const request = new sql.Request();
+    request.timeout = 30000; // Evitar timeouts
+    
+    const result = await request.query(query);
+    return result.recordset || [];
+  } catch (error) {
+    throw new Error('Error al obtener clientes legacy: ' + error.message);
+  }
+};
+
+module.exports = { getClientes, getClientesLegacy };

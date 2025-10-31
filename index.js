@@ -1,7 +1,7 @@
 const express = require('express');
 const sql = require('mssql');
 const cors = require('cors');
-const { getClientes } = require('./queries/clientesQueries');  
+const { getClientes, getClientesLegacy } = require('./queries/clientesQueries');
 const { getMovimientosPorCliente } = require('./queries/movimientosQueries'); 
 const { getKardex } = require('./queries/kardexQueries');  
 const { getArticulosAsociados } = require('./queries/artXartQueries'); 
@@ -9,6 +9,7 @@ const { getArticulos } = require('./queries/articulosQueries');
 const { getMovimientosYDetalles } = require('./queries/MovKaxQueries');  
 const { insertarSaldoInicial, actualizarSaldoInicial, existeSaldoInicial, obtenerSaldoInicial } = require('./queries/saldosIniciales'); // Importar las funciones de saldos iniciales
 const { getArticulosConCodigosBarras } = require('./queries/articuloCodBarrasQueries');
+const { getPrecios, getPreciosLegacy } = require('./queries/preciosQueries');
 
 const app = express();
 
@@ -35,23 +36,12 @@ sql.connect(config).then(() => {
 // Ruta para obtener la lista de clientes
 app.get('/consulta', async (req, res) => {
     try {
-        const clientes = await getClientes();
-        
-        // Desempaquetar wrapper para mantener contrato legacy (Cliente[])
-        let clientesArray;
-        if (clientes && typeof clientes === 'object' && Array.isArray(clientes.data)) {
-            clientesArray = clientes.data;
-        } else if (Array.isArray(clientes)) {
-            clientesArray = clientes;
-        } else {
-            clientesArray = [];
-        }
-        
-        console.log(`[DEBUG] endpoint=/consulta count=${clientesArray.length}`);
-        res.json(clientesArray);
-    } catch (err) {
-        console.error(err);
-        res.status(500).send('Error al obtener la lista de clientes');
+        const clientes = await getClientesLegacy(); // ← usar la nueva función
+        console.log('[DEBUG] /consulta count=', Array.isArray(clientes) ? clientes.length : 0);
+        return res.json(Array.isArray(clientes) ? clientes : []);
+    } catch (e) {
+        console.error('[/consulta] error:', e);
+        return res.json([]); // nunca rompas el contrato
     }
 });
 
@@ -144,6 +134,41 @@ app.get('/api/clientes', async (req, res) => {
         res.status(500).json({ ok: false, error: 'Error al obtener clientes' });
     }
 });
+
+
+
+
+// --- PRECIOS (legacy): devuelve el shape exacto del SELECT original
+app.get('/precios', async (req, res) => {
+  try {
+    const precios = await getPreciosLegacy();
+    res.json(precios);
+  } catch (err) {
+    console.error('[/precios] error:', err);
+    res.status(500).send('Error al obtener precios');
+  }
+});
+// --- PRECIOS con filtros/paginado (2008 R2 compatible)
+app.get('/api/precios', async (req, res) => {
+  try {
+    const filters = {
+      search:  req.query.search  || null,   // busca en nombre y numero
+      moneda:  req.query.moneda  || null,   // nombre exacto de la moneda (m.nombre)
+      limit:   req.query.limit   || 100,    // 1..1000
+      offset:  req.query.offset  || 0
+    };
+
+    console.log('📡 [/api/precios] filtros =', filters);
+    const result = await getPrecios(filters);
+    res.json({ ok: true, total: result.total, data: result.data });
+  } catch (err) {
+    console.error('❌ [/api/precios] Error:', err);
+    res.status(500).json({ ok: false, error: 'Error al obtener precios' });
+  }
+});
+
+
+
 
 // Nuevo endpoint para obtener artículos con códigos de barras
 app.get('/etiquetas/articulos', async (req, res) => {
