@@ -101,33 +101,43 @@ const getMovimientosPorCliente = async (clienteId) => {
         cm.comentario
 )
 SELECT 
-    codigo,
-    cod_cli_prov,
-    tipo_comprobante,
-    nombre_comprobante,
-    numero,
-    fecha,
-    importe_neto,
-    fecha_vto,
-    fecha_comprobante,
-    importe_total,
-    comentario,
-    estado,
+    CTE.codigo,
+    CTE.cod_cli_prov,
+    CTE.tipo_comprobante,
+    CTE.nombre_comprobante,
+    CTE.numero,
+    CTE.fecha,
+    CTE.importe_neto,
+    CTE.fecha_vto,
+    CTE.fecha_comprobante,
+    CTE.importe_total,
+    CTE.comentario,
+    CTE.estado,
     -- Limpiar valores combinados y manejar las barras
     CASE
-        WHEN efectivo_raw IS NULL THEN NULL
+        WHEN CTE.efectivo_raw IS NULL THEN NULL
         ELSE LTRIM(
             CASE 
-                WHEN efectivo_raw LIKE 'Efectivo%' AND efectivo_raw LIKE '%/ Cheque%' THEN efectivo_raw
-                WHEN efectivo_raw LIKE 'Efectivo%' AND efectivo_raw LIKE '%/ Transferencia%' THEN efectivo_raw
-                WHEN efectivo_raw LIKE '%Cheque%' AND efectivo_raw LIKE '%Transferencia%' THEN efectivo_raw
-                ELSE REPLACE(efectivo_raw, '/', '')
+                WHEN CTE.efectivo_raw LIKE 'Efectivo%' AND CTE.efectivo_raw LIKE '%/ Cheque%' THEN CTE.efectivo_raw
+                WHEN CTE.efectivo_raw LIKE 'Efectivo%' AND CTE.efectivo_raw LIKE '%/ Transferencia%' THEN CTE.efectivo_raw
+                WHEN CTE.efectivo_raw LIKE '%Cheque%' AND CTE.efectivo_raw LIKE '%Transferencia%' THEN CTE.efectivo_raw
+                ELSE REPLACE(CTE.efectivo_raw, '/', '')
             END
         )
     END AS efectivo
 FROM CTE
-WHERE fila = 1  -- Solo mantener una fila por cada 'c.codigo'
-ORDER BY fecha;
+WHERE 
+    CTE.fila = 1
+    AND NOT EXISTS (
+        SELECT 1
+        FROM dbo.comp_x_forma_pago cxp
+        INNER JOIN dbo.caja_movimiento cm2
+            ON cm2.codigo = cxp.codigo_fp
+        WHERE 
+            cxp.codigo_comp = CTE.codigo
+            AND cm2.comentario LIKE 'FA 0007%'  -- movimiento de caja que marca contado en PV 7
+    )
+ORDER BY CTE.fecha;
             `);
         return result.recordset;
     } catch (error) {
