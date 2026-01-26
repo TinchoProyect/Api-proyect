@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte de Devoluciones</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #009879;
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            position: sticky;
+            top: 0;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f8f8f8;
+        }
+
+        .amount {
+            text-align: right;
+            font-family: 'Consolas', monospace;
+            font-weight: bold;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-style: italic;
+            color: #666;
+        }
+
+        #stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #eef2f5;
+            border-radius: 6px;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: #7f8c8d;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>Reporte de Devoluciones (Últimos 12 Meses)</h1>
+
+        <div id="stats" style="display:none;">
+            <div class="stat-item">
+                <span class="stat-label">Total Registros</span>
+                <span class="stat-value" id="total-count">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Total Importe</span>
+                <span class="stat-value" id="total-amount">$0.00</span>
+            </div>
+        </div>
+
+        <div id="loading" class="loading">Cargando datos...</div>
+
+        <div style="overflow-x:auto;">
+            <table id="data-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Comp.</th>
+                        <th>Cliente</th>
+                        <th>Artículo</th>
+                        <th>Cant.</th>
+                        <th style="text-align: right;">Importe</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <!-- Data will be inserted here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', loadData);
+
+        async function loadData() {
+            try {
+                const response = await fetch('/devoluciones');
+                const data = await response.json();
+
+                const tbody = document.getElementById('table-body');
+                const loading = document.getElementById('loading');
+                const table = document.getElementById('data-table');
+                const stats = document.getElementById('stats');
+
+                let totalImporte = 0;
+
+                data.forEach(item => {
+                    const row = document.createElement('tr');
+
+                    // Format Date
+                    const dateDesc = new Date(item.fecha).toLocaleDateString();
+
+                    // Format Currency
+                    totalImporte += item.importe_neto || 0;
+                    const amountDesc = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(item.importe_neto);
+
+                    // Format Invoice Number (PV-Number)
+                    const pv = String(item.punto_venta || 0).padStart(4, '0');
+                    const num = String(item.numero_comprobante || 0).padStart(8, '0');
+                    const compFull = `${item.tipo_comprobante} ${pv}-${num}`;
+
+                    row.innerHTML = `
+                        <td>${dateDesc}</td>
+                        <td>${compFull}</td>
+                        <td>${item.cliente || 'Consumidor Final'}</td>
+                        <td>
+                            <strong style="color:#555;">${item.codigo_articulo}</strong> - 
+                            ${item.articulo || '<span style="color:#aaa;">Sin descripción</span>'}
+                        </td>
+                        <td style="font-weight:bold; color:${item.cantidad < 0 ? 'red' : 'green'};">${item.cantidad}</td>
+                        <td class="amount">${amountDesc}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+                // Update Stats
+                document.getElementById('total-count').textContent = data.length;
+                document.getElementById('total-amount').textContent = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(totalImporte);
+
+                loading.style.display = 'none';
+                table.style.display = 'table';
+                stats.style.display = 'flex';
+
+            } catch (error) {
+                document.getElementById('loading').innerHTML = `<span style="color:red">Error al cargar datos: ${error.message}</span>`;
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+
+</html>

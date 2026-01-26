@@ -2,14 +2,15 @@ const express = require('express');
 const sql = require('mssql');
 const cors = require('cors');
 const { getClientes, getClientesLegacy } = require('./queries/clientesQueries');
-const { getMovimientosPorCliente } = require('./queries/movimientosQueries'); 
-const { getKardex } = require('./queries/kardexQueries');  
-const { getArticulosAsociados } = require('./queries/artXartQueries'); 
-const { getArticulos } = require('./queries/articulosQueries'); 
-const { getMovimientosYDetalles } = require('./queries/MovKaxQueries');  
+const { getMovimientosPorCliente } = require('./queries/movimientosQueries');
+const { getKardex } = require('./queries/kardexQueries');
+const { getArticulosAsociados } = require('./queries/artXartQueries');
+const { getArticulos } = require('./queries/articulosQueries');
+const { getMovimientosYDetalles } = require('./queries/MovKaxQueries');
 const { insertarSaldoInicial, actualizarSaldoInicial, existeSaldoInicial, obtenerSaldoInicial } = require('./queries/saldosIniciales'); // Importar las funciones de saldos iniciales
 const { getArticulosConCodigosBarras } = require('./queries/articuloCodBarrasQueries');
 const { getPrecios, getPreciosLegacy } = require('./queries/preciosQueries');
+const { getDevolucionesArticulos } = require('./queries/devolucionesQueries');
 
 const app = express();
 
@@ -18,7 +19,7 @@ app.use(express.json()); // Middleware para leer cuerpos de solicitudes JSON
 
 // Configuración de la base de datos SQL Server
 const config = {
-    server: 'localhost',  
+    server: 'localhost',
     database: 'DatosSQL',
     user: 'api_usuario',
     password: 'ApiNueva26102024',
@@ -49,13 +50,13 @@ app.get('/consulta', async (req, res) => {
 app.get('/movimientos', async (req, res) => {
     const clienteId = req.query.clienteId;
     console.log(`clienteId recibido: ${clienteId}`);
-    
+
     if (!clienteId) {
         return res.status(400).send('El ID del cliente es necesario');
     }
-    
+
     try {
-        const movimientos = await getMovimientosPorCliente(clienteId);  
+        const movimientos = await getMovimientosPorCliente(clienteId);
         res.json(movimientos);
     } catch (err) {
         console.error(err);
@@ -67,14 +68,14 @@ app.get('/movimientos', async (req, res) => {
 app.get('/movimientos_detalles', async (req, res) => {
     const clienteId = req.query.clienteId;
     console.log(`clienteId recibido para detalles: ${clienteId}`);
-    
+
     if (!clienteId) {
         return res.status(400).send('El ID del cliente es necesario');
     }
-    
+
     try {
-        const movimientosYDetalles = await getMovimientosYDetalles(clienteId);  
-        res.json(movimientosYDetalles);  
+        const movimientosYDetalles = await getMovimientosYDetalles(clienteId);
+        res.json(movimientosYDetalles);
     } catch (err) {
         console.error(err);
         res.status(500).send('Error al obtener los movimientos y detalles del cliente');
@@ -84,7 +85,7 @@ app.get('/movimientos_detalles', async (req, res) => {
 // Ruta para obtener los datos de Kardex
 app.get('/kardex', async (req, res) => {
     try {
-        const kardex = await getKardex();  
+        const kardex = await getKardex();
         res.json(kardex);
     } catch (err) {
         console.error(err);
@@ -95,7 +96,7 @@ app.get('/kardex', async (req, res) => {
 // Ruta para obtener los artículos asociados
 app.get('/articulos_asociados', async (req, res) => {
     try {
-        const articulosAsociados = await getArticulosAsociados();  
+        const articulosAsociados = await getArticulosAsociados();
         res.json(articulosAsociados);
     } catch (err) {
         console.error(err);
@@ -106,11 +107,27 @@ app.get('/articulos_asociados', async (req, res) => {
 // Nueva ruta para obtener los artículos
 app.get('/articulos', async (req, res) => {
     try {
-        const articulos = await getArticulos();  
+        const articulos = await getArticulos();
         res.json(articulos);
     } catch (err) {
         console.error(err);
         res.status(500).send('Error al obtener los artículos');
+    }
+});
+
+// Nueva ruta para obtener las devoluciones de artículos (Notas de Crédito con detalle)
+// Integrado a pedido del usuario para estar disponible en el inicio automático (Puerto 3000)
+app.get('/devoluciones', async (req, res) => {
+    try {
+        const { cliente, articulo, fecha, cantidad } = req.query; // Parámetros para la API externa
+
+        console.log(`[${new Date().toISOString()}] Solicitud en /devoluciones. Params: Cliente=${cliente}, Art=${articulo}, Fecha=${fecha}, Cant=${cantidad}`);
+
+        const devoluciones = await getDevolucionesArticulos(cliente, articulo, fecha, cantidad);
+        res.json(devoluciones);
+    } catch (err) {
+        console.error('Error al obtener devoluciones:', err);
+        res.status(500).send('Error al obtener devoluciones');
     }
 });
 
@@ -140,31 +157,31 @@ app.get('/api/clientes', async (req, res) => {
 
 // --- PRECIOS (legacy): devuelve el shape exacto del SELECT original
 app.get('/precios', async (req, res) => {
-  try {
-    const precios = await getPreciosLegacy();
-    res.json(precios);
-  } catch (err) {
-    console.error('[/precios] error:', err);
-    res.status(500).send('Error al obtener precios');
-  }
+    try {
+        const precios = await getPreciosLegacy();
+        res.json(precios);
+    } catch (err) {
+        console.error('[/precios] error:', err);
+        res.status(500).send('Error al obtener precios');
+    }
 });
 // --- PRECIOS con filtros/paginado (2008 R2 compatible)
 app.get('/api/precios', async (req, res) => {
-  try {
-    const filters = {
-      search:  req.query.search  || null,   // busca en nombre y numero
-      moneda:  req.query.moneda  || null,   // nombre exacto de la moneda (m.nombre)
-      limit:   req.query.limit   || 100,    // 1..1000
-      offset:  req.query.offset  || 0
-    };
+    try {
+        const filters = {
+            search: req.query.search || null,   // busca en nombre y numero
+            moneda: req.query.moneda || null,   // nombre exacto de la moneda (m.nombre)
+            limit: req.query.limit || 100,    // 1..1000
+            offset: req.query.offset || 0
+        };
 
-    console.log('📡 [/api/precios] filtros =', filters);
-    const result = await getPrecios(filters);
-    res.json({ ok: true, total: result.total, data: result.data });
-  } catch (err) {
-    console.error('❌ [/api/precios] Error:', err);
-    res.status(500).json({ ok: false, error: 'Error al obtener precios' });
-  }
+        console.log('📡 [/api/precios] filtros =', filters);
+        const result = await getPrecios(filters);
+        res.json({ ok: true, total: result.total, data: result.data });
+    } catch (err) {
+        console.error('❌ [/api/precios] Error:', err);
+        res.status(500).json({ ok: false, error: 'Error al obtener precios' });
+    }
 });
 
 
@@ -214,7 +231,7 @@ app.post('/saldos-iniciales', async (req, res) => {
     try {
         // Verificar si existe el saldo inicial antes de actualizar
         const saldoExiste = await existeSaldoInicial(IDCliente);
-        
+
         if (saldoExiste) {
             // Si existe, actualizar el saldo inicial
             await actualizarSaldoInicial(IDCliente, Monto, Fecha);

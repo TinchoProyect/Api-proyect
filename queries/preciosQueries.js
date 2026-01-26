@@ -45,9 +45,13 @@ const getPrecios = async (filters = {}) => {
           ar.precio2                          AS mayorista,
           ar.precio3                          AS especial_brus,
           ar.precio4                          AS consumidor_final,
-          ar.precio5                          AS lista_5
+          ar.precio5                          AS lista_5,
+          fam.nombre                          AS familia,
+          sub.nombre                          AS subfamilia
         FROM dbo.articulos ar
-        JOIN dbo.monedas   m  ON m.codigo = ar.moneda
+        JOIN dbo.monedas      m   ON m.codigo = ar.moneda
+        LEFT JOIN dbo.familias    fam ON ar.familia = fam.codigo
+        LEFT JOIN dbo.subfamilias sub ON ar.subfamilia = sub.codigo
         WHERE ${where}
       ),
       numerada AS (
@@ -97,9 +101,13 @@ SELECT
     ar.precio2  AS [Mayorista],
     ar.precio3  AS [Especial (Brus)],
     ar.precio4  AS [Consumidor Final],
-    ar.precio5  AS [Lista 5]
+    ar.precio5  AS [Lista 5],
+    fam.nombre  AS [Familia],
+    sub.nombre  AS [Subfamilia]
 FROM dbo.articulos  ar
-JOIN dbo.monedas    m  ON m.codigo = ar.moneda
+JOIN dbo.monedas      m   ON m.codigo = ar.moneda
+LEFT JOIN dbo.familias    fam ON ar.familia = fam.codigo
+LEFT JOIN dbo.subfamilias sub ON ar.subfamilia = sub.codigo
 WHERE ar.eliminado = 0
 ORDER BY ar.nombre ASC;
 `;
